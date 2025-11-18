@@ -10,6 +10,7 @@
 #include <zephyr/init.h>
 #include <zmk/event_manager.h>
 #include <zmk/events/keycode_state_changed.h>
+#include <zmk/events/keystroke_stats_changed.h>
 #include <zmk/keystroke_stats.h>
 
 LOG_MODULE_REGISTER(zmk_keystroke_stats, CONFIG_ZMK_KEYSTROKE_STATS_LOG_LEVEL);
@@ -333,6 +334,9 @@ static int keystroke_event_listener(const zmk_event_t *eh) {
 ZMK_LISTENER(keystroke_stats, keystroke_event_listener);
 ZMK_SUBSCRIPTION(keystroke_stats, zmk_keycode_state_changed);
 
+/* Event implementation */
+ZMK_EVENT_IMPL(zmk_keystroke_stats_changed);
+
 /* Periodic save timer */
 static void periodic_save_handler(struct k_timer *timer) {
     LOG_INF("Periodic save triggered");
@@ -340,6 +344,38 @@ static void periodic_save_handler(struct k_timer *timer) {
 }
 
 K_TIMER_DEFINE(periodic_save_timer, periodic_save_handler, NULL);
+
+/* UI update timer (60 second interval) */
+static void ui_update_work_handler(struct k_work *work) {
+    ARG_UNUSED(work);
+
+    /* Get current stats and raise event */
+    struct zmk_keystroke_stats stats;
+    if (zmk_keystroke_stats_get(&stats) == 0) {
+        LOG_INF("Raising keystroke_stats_changed event: today=%u, yesterday=%u, total=%u",
+                stats.today_keystrokes, stats.yesterday_keystrokes, stats.total_keystrokes);
+
+        raise_zmk_keystroke_stats_changed((struct zmk_keystroke_stats_changed){
+            .today_keystrokes = stats.today_keystrokes,
+            .yesterday_keystrokes = stats.yesterday_keystrokes,
+            .total_keystrokes = stats.total_keystrokes
+        });
+    } else {
+        LOG_WRN("Failed to get keystroke stats for UI update");
+    }
+}
+
+K_WORK_DEFINE(ui_update_work, ui_update_work_handler);
+
+static void ui_update_timer_handler(struct k_timer *timer) {
+    ARG_UNUSED(timer);
+    LOG_INF("UI update timer triggered");
+
+    /* Submit to system work queue to raise event */
+    k_work_submit(&ui_update_work);
+}
+
+K_TIMER_DEFINE(ui_update_timer, ui_update_timer_handler, NULL);
 
 /**
  * @brief Public API Implementation
@@ -553,12 +589,16 @@ static int keystroke_stats_init(const struct device *dev) {
                   K_MSEC(CONFIG_ZMK_KEYSTROKE_STATS_SAVE_INTERVAL_MS),
                   K_MSEC(CONFIG_ZMK_KEYSTROKE_STATS_SAVE_INTERVAL_MS));
 
+    /* Start UI update timer (60 second interval) */
+    k_timer_start(&ui_update_timer, K_SECONDS(60), K_SECONDS(60));
+
     state.initialized = true;
 
     LOG_INF("Keystroke statistics module initialized");
     LOG_INF("  Save interval: %d ms (%d hours)",
             CONFIG_ZMK_KEYSTROKE_STATS_SAVE_INTERVAL_MS,
             CONFIG_ZMK_KEYSTROKE_STATS_SAVE_INTERVAL_MS / 3600000);
+    LOG_INF("  UI update interval: 60 seconds");
     LOG_INF("  Current uptime day: %u", state.current_uptime_day);
 
     return 0;

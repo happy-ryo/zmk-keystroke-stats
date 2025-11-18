@@ -7,6 +7,7 @@ if(CONFIG_ZMK_KEYSTROKE_STATS)
 zephyr_library()
 zephyr_library_sources(src/keystroke_stats.c)
 zephyr_library_sources(src/keystroke_stats_settings.c)
+zephyr_library_sources(src/events/keystroke_stats_changed.c)
 zephyr_library_include_directories(include)
 
 # UI implementation selection
