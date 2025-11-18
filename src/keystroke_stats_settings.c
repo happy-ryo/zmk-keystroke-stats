@@ -19,83 +19,11 @@ LOG_MODULE_REGISTER(keystroke_stats_settings, CONFIG_ZMK_KEYSTROKE_STATS_LOG_LEV
 /* Current data structure version */
 #define SETTINGS_VERSION 1
 
-/**
- * @brief Persistent data structure
- *
- * This structure is saved to NVS and loaded at boot.
- * Version field allows for future migration.
+/* Note: struct zmk_keystroke_stats_persist_data is now defined in the public header.
+ * This matches the layout of the old 'struct persisted_data'.
+ * We use the public API functions zmk_keystroke_stats_get_persist_data() and
+ * zmk_keystroke_stats_load_persist_data() to access the internal state.
  */
-struct persisted_data {
-    uint8_t version;
-    uint32_t total_keystrokes;
-    uint32_t today_keystrokes;
-    uint32_t yesterday_keystrokes;
-    uint16_t current_uptime_day;
-
-#if CONFIG_ZMK_KEYSTROKE_STATS_ENABLE_WPM
-    uint8_t peak_wpm;
-    uint32_t total_typing_time_ms;
-#endif
-
-#if CONFIG_ZMK_KEYSTROKE_STATS_ENABLE_KEY_HEATMAP
-    uint32_t key_counts[CONFIG_ZMK_KEYSTROKE_STATS_MAX_KEY_POSITIONS];
-#endif
-
-#if CONFIG_ZMK_KEYSTROKE_STATS_ENABLE_DAILY_HISTORY
-    struct zmk_keystroke_stats_daily_entry daily_history[CONFIG_ZMK_KEYSTROKE_STATS_DAILY_HISTORY_DAYS];
-    uint8_t daily_history_count;
-#endif
-} __packed;
-
-/* External state access (from keystroke_stats.c) */
-extern struct {
-    uint32_t total_keystrokes;
-    uint32_t today_keystrokes;
-    uint32_t yesterday_keystrokes;
-
-#if CONFIG_ZMK_KEYSTROKE_STATS_ENABLE_SESSION_TRACKING
-    uint32_t session_keystrokes;
-    uint32_t session_start_time;
-#endif
-
-#if CONFIG_ZMK_KEYSTROKE_STATS_ENABLE_WPM
-    uint8_t current_wpm;
-    uint8_t average_wpm;
-    uint8_t peak_wpm;
-    uint32_t total_typing_time_ms;
-    struct {
-        uint32_t keystrokes[10];
-        uint32_t timestamps[10];
-        uint8_t head;
-        uint8_t count;
-    } wpm_window;
-#endif
-
-#if CONFIG_ZMK_KEYSTROKE_STATS_ENABLE_KEY_HEATMAP
-    uint32_t key_counts[CONFIG_ZMK_KEYSTROKE_STATS_MAX_KEY_POSITIONS];
-#endif
-
-#if CONFIG_ZMK_KEYSTROKE_STATS_ENABLE_DAILY_HISTORY
-    struct zmk_keystroke_stats_daily_entry daily_history[CONFIG_ZMK_KEYSTROKE_STATS_DAILY_HISTORY_DAYS];
-    uint8_t daily_history_count;
-#endif
-
-    uint16_t current_uptime_day;
-    uint32_t last_keystroke_time;
-
-    struct {
-        zmk_keystroke_stats_callback_t callback;
-        void *user_data;
-    } callbacks[4];
-    uint8_t callback_count;
-
-    struct k_work_delayable save_work;
-    bool save_pending;
-    bool initialized;
-} state;
-
-/* External mutex */
-extern struct k_mutex stats_mutex;
 
 /**
  * @brief Settings load callback
@@ -112,7 +40,7 @@ static int settings_load_handler(const char *key, size_t len,
     if (!next) {
         /* Root key: "keystroke_stats" */
         if (!strncmp(key, "data", name_len)) {
-            struct persisted_data data;
+            struct zmk_keystroke_stats_persist_data data;
 
             if (len != sizeof(data)) {
                 LOG_ERR("Persisted data size mismatch: expected %zu, got %zu",
@@ -126,36 +54,19 @@ static int settings_load_handler(const char *key, size_t len,
                 return rc;
             }
 
-            /* Version check */
+            /* Version check and load via public API */
             if (data.version != SETTINGS_VERSION) {
                 LOG_WRN("Settings version mismatch: %u != %u (ignoring)",
                         data.version, SETTINGS_VERSION);
                 return 0;
             }
 
-            /* Load data into state */
-            k_mutex_lock(&stats_mutex, K_FOREVER);
-
-            state.total_keystrokes = data.total_keystrokes;
-            state.today_keystrokes = data.today_keystrokes;
-            state.yesterday_keystrokes = data.yesterday_keystrokes;
-            state.current_uptime_day = data.current_uptime_day;
-
-#if CONFIG_ZMK_KEYSTROKE_STATS_ENABLE_WPM
-            state.peak_wpm = data.peak_wpm;
-            state.total_typing_time_ms = data.total_typing_time_ms;
-#endif
-
-#if CONFIG_ZMK_KEYSTROKE_STATS_ENABLE_KEY_HEATMAP
-            memcpy(state.key_counts, data.key_counts, sizeof(state.key_counts));
-#endif
-
-#if CONFIG_ZMK_KEYSTROKE_STATS_ENABLE_DAILY_HISTORY
-            memcpy(state.daily_history, data.daily_history, sizeof(state.daily_history));
-            state.daily_history_count = data.daily_history_count;
-#endif
-
-            k_mutex_unlock(&stats_mutex);
+            /* Use public API to load data (provides mutex protection) */
+            rc = zmk_keystroke_stats_load_persist_data(&data);
+            if (rc < 0) {
+                LOG_ERR("Failed to load persist data: %d", rc);
+                return rc;
+            }
 
             LOG_INF("Loaded persisted statistics:");
             LOG_INF("  Total keystrokes: %u", data.total_keystrokes);
@@ -178,36 +89,17 @@ static int settings_load_handler(const char *key, size_t len,
 static int settings_export_handler(int (*cb)(const char *name,
                                               const void *value,
                                               size_t val_len)) {
-    struct persisted_data data;
+    struct zmk_keystroke_stats_persist_data data;
 
-    k_mutex_lock(&stats_mutex, K_FOREVER);
-
-    /* Prepare data structure */
-    memset(&data, 0, sizeof(data));
-    data.version = SETTINGS_VERSION;
-    data.total_keystrokes = state.total_keystrokes;
-    data.today_keystrokes = state.today_keystrokes;
-    data.yesterday_keystrokes = state.yesterday_keystrokes;
-    data.current_uptime_day = state.current_uptime_day;
-
-#if CONFIG_ZMK_KEYSTROKE_STATS_ENABLE_WPM
-    data.peak_wpm = state.peak_wpm;
-    data.total_typing_time_ms = state.total_typing_time_ms;
-#endif
-
-#if CONFIG_ZMK_KEYSTROKE_STATS_ENABLE_KEY_HEATMAP
-    memcpy(data.key_counts, state.key_counts, sizeof(data.key_counts));
-#endif
-
-#if CONFIG_ZMK_KEYSTROKE_STATS_ENABLE_DAILY_HISTORY
-    memcpy(data.daily_history, state.daily_history, sizeof(data.daily_history));
-    data.daily_history_count = state.daily_history_count;
-#endif
-
-    k_mutex_unlock(&stats_mutex);
+    /* Use public API to get data (provides mutex protection) */
+    int rc = zmk_keystroke_stats_get_persist_data(&data);
+    if (rc < 0) {
+        LOG_ERR("Failed to get persist data: %d", rc);
+        return rc;
+    }
 
     /* Save to settings */
-    int rc = cb(SETTINGS_KEY "/data", &data, sizeof(data));
+    rc = cb(SETTINGS_KEY "/data", &data, sizeof(data));
     if (rc < 0) {
         LOG_ERR("Failed to export settings: %d", rc);
         return rc;

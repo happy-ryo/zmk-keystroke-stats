@@ -5,6 +5,7 @@
  */
 
 #include <zephyr/kernel.h>
+#include <zephyr/device.h>
 #include <zephyr/logging/log.h>
 #include <zmk/keystroke_stats.h>
 

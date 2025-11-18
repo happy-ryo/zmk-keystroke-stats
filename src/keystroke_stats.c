@@ -565,3 +565,88 @@ static int keystroke_stats_init(const struct device *dev) {
 }
 
 SYS_INIT(keystroke_stats_init, APPLICATION, 50);
+
+/* Persistence API implementation */
+
+#define PERSIST_DATA_VERSION 1
+
+int zmk_keystroke_stats_get_persist_data(struct zmk_keystroke_stats_persist_data *data) {
+    if (!data) {
+        return -EINVAL;
+    }
+
+    k_mutex_lock(&stats_mutex, K_FOREVER);
+
+    /* Populate persistent data structure */
+    data->version = PERSIST_DATA_VERSION;
+    data->total_keystrokes = state.total_keystrokes;
+    data->today_keystrokes = state.today_keystrokes;
+    data->yesterday_keystrokes = state.yesterday_keystrokes;
+    data->current_uptime_day = state.current_uptime_day;
+
+#if CONFIG_ZMK_KEYSTROKE_STATS_ENABLE_WPM
+    data->peak_wpm = state.peak_wpm;
+    data->total_typing_time_ms = state.total_typing_time_ms;
+#endif
+
+#if CONFIG_ZMK_KEYSTROKE_STATS_ENABLE_KEY_HEATMAP
+    memcpy(data->key_counts, state.key_counts, sizeof(data->key_counts));
+#endif
+
+#if CONFIG_ZMK_KEYSTROKE_STATS_ENABLE_DAILY_HISTORY
+    memcpy(data->daily_history, state.daily_history, sizeof(data->daily_history));
+    data->daily_history_count = state.daily_history_count;
+#endif
+
+    k_mutex_unlock(&stats_mutex);
+
+    LOG_DBG("Persist data retrieved: version=%d, total=%u, today=%u",
+            data->version, data->total_keystrokes, data->today_keystrokes);
+
+    return 0;
+}
+
+int zmk_keystroke_stats_load_persist_data(const struct zmk_keystroke_stats_persist_data *data) {
+    if (!data) {
+        return -EINVAL;
+    }
+
+    /* Validate data version */
+    if (data->version != PERSIST_DATA_VERSION) {
+        LOG_WRN("Incompatible persist data version: %d (expected %d)",
+                data->version, PERSIST_DATA_VERSION);
+        return -EINVAL;
+    }
+
+    k_mutex_lock(&stats_mutex, K_FOREVER);
+
+    /* Restore persistent fields */
+    state.total_keystrokes = data->total_keystrokes;
+    state.today_keystrokes = data->today_keystrokes;
+    state.yesterday_keystrokes = data->yesterday_keystrokes;
+    state.current_uptime_day = data->current_uptime_day;
+
+#if CONFIG_ZMK_KEYSTROKE_STATS_ENABLE_WPM
+    state.peak_wpm = data->peak_wpm;
+    state.total_typing_time_ms = data->total_typing_time_ms;
+#endif
+
+#if CONFIG_ZMK_KEYSTROKE_STATS_ENABLE_KEY_HEATMAP
+    memcpy(state.key_counts, data->key_counts, sizeof(state.key_counts));
+#endif
+
+#if CONFIG_ZMK_KEYSTROKE_STATS_ENABLE_DAILY_HISTORY
+    memcpy(state.daily_history, data->daily_history, sizeof(state.daily_history));
+    state.daily_history_count = data->daily_history_count;
+#endif
+
+    k_mutex_unlock(&stats_mutex);
+
+    LOG_INF("Persist data loaded: total=%u, today=%u, yesterday=%u",
+            state.total_keystrokes, state.today_keystrokes, state.yesterday_keystrokes);
+
+    /* Notify callbacks about loaded data */
+    notify_callbacks();
+
+    return 0;
+}

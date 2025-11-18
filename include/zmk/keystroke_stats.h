@@ -189,6 +189,59 @@ int zmk_keystroke_stats_register_callback(zmk_keystroke_stats_callback_t callbac
 int zmk_keystroke_stats_unregister_callback(zmk_keystroke_stats_callback_t callback);
 
 /**
+ * @brief Persistent data structure for settings storage
+ *
+ * This structure contains all fields that are persisted to non-volatile storage.
+ * The settings layer uses the accessor functions below to get/set this data.
+ *
+ * Version field allows for future data migration.
+ */
+struct zmk_keystroke_stats_persist_data {
+    uint8_t version;
+    uint32_t total_keystrokes;
+    uint32_t today_keystrokes;
+    uint32_t yesterday_keystrokes;
+    uint16_t current_uptime_day;
+
+#if CONFIG_ZMK_KEYSTROKE_STATS_ENABLE_WPM
+    uint8_t peak_wpm;
+    uint32_t total_typing_time_ms;
+#endif
+
+#if CONFIG_ZMK_KEYSTROKE_STATS_ENABLE_KEY_HEATMAP
+    uint32_t key_counts[CONFIG_ZMK_KEYSTROKE_STATS_MAX_KEY_POSITIONS];
+#endif
+
+#if CONFIG_ZMK_KEYSTROKE_STATS_ENABLE_DAILY_HISTORY
+    struct zmk_keystroke_stats_daily_entry daily_history[CONFIG_ZMK_KEYSTROKE_STATS_DAILY_HISTORY_DAYS];
+    uint8_t daily_history_count;
+#endif
+} __packed;
+
+/**
+ * @brief Get persistent data for settings storage
+ *
+ * This function is used by the settings layer to retrieve data that should
+ * be persisted to non-volatile storage. The function is thread-safe and
+ * uses mutex protection internally.
+ *
+ * @param data Pointer to structure to populate with persistent data
+ * @return 0 on success, negative errno on failure
+ */
+int zmk_keystroke_stats_get_persist_data(struct zmk_keystroke_stats_persist_data *data);
+
+/**
+ * @brief Load persistent data from settings storage
+ *
+ * This function is used by the settings layer to restore previously saved data.
+ * The function validates the data version and is thread-safe.
+ *
+ * @param data Pointer to persistent data to load
+ * @return 0 on success, negative errno on failure (-EINVAL for invalid version)
+ */
+int zmk_keystroke_stats_load_persist_data(const struct zmk_keystroke_stats_persist_data *data);
+
+/**
  * @brief Macro for defining a keystroke statistics UI implementation
  *
  * UI implementations should use this macro to register themselves with
