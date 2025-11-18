@@ -1,0 +1,48 @@
+# ビルド成果物
+build/
+*.o
+*.a
+*.elf
+*.hex
+*.bin
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+*.egg-info/
+dist/
+.venv/
+venv/
+
+# IDE / エディタ
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.cproject
+.settings/
+
+# OS固有
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.directory
+
+# ログファイル
+*.log
+
+# 一時ファイル
+tmp/
+temp/
+*.tmp
+*.bak
+*.cache
