@@ -389,9 +389,13 @@ int zmk_keystroke_stats_get(struct zmk_keystroke_stats *stats) {
     for (int i = 0; i < CONFIG_ZMK_KEYSTROKE_STATS_TOP_KEYS_COUNT; i++) {
         for (int j = i + 1; j < CONFIG_ZMK_KEYSTROKE_STATS_MAX_KEY_POSITIONS; j++) {
             if (top_keys[j].count > top_keys[i].count) {
-                struct { uint32_t position; uint32_t count; } temp = top_keys[i];
-                top_keys[i] = top_keys[j];
-                top_keys[j] = temp;
+                /* Swap */
+                uint32_t temp_pos = top_keys[i].position;
+                uint32_t temp_count = top_keys[i].count;
+                top_keys[i].position = top_keys[j].position;
+                top_keys[i].count = top_keys[j].count;
+                top_keys[j].position = temp_pos;
+                top_keys[j].count = temp_count;
             }
         }
         stats->top_keys[i].position = top_keys[i].position;
