@@ -562,9 +562,7 @@ int zmk_keystroke_stats_unregister_callback(zmk_keystroke_stats_callback_t callb
 /**
  * @brief Module initialization
  */
-static int keystroke_stats_init(const struct device *dev) {
-    ARG_UNUSED(dev);
-
+static int keystroke_stats_init(void) {
     LOG_INF("Initializing keystroke statistics module");
 
     /* Initialize state */
