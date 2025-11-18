@@ -334,9 +334,6 @@ static int keystroke_event_listener(const zmk_event_t *eh) {
 ZMK_LISTENER(keystroke_stats, keystroke_event_listener);
 ZMK_SUBSCRIPTION(keystroke_stats, zmk_keycode_state_changed);
 
-/* Event implementation */
-ZMK_EVENT_IMPL(zmk_keystroke_stats_changed);
-
 /* Periodic save timer */
 static void periodic_save_handler(struct k_timer *timer) {
     LOG_INF("Periodic save triggered");
