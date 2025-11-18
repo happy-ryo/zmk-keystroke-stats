@@ -1,0 +1,208 @@
+# Copyright (c) 2025 zmk-keystroke-stats contributors
+# SPDX-License-Identifier: MIT
+
+menuconfig ZMK_KEYSTROKE_STATS
+	bool "Keystroke Statistics Tracking"
+	default n
+	select SETTINGS
+	help
+	  Enable keystroke statistics tracking with persistent storage.
+	  Tracks today's keystrokes, yesterday's keystrokes, and total
+	  keystrokes across firmware updates.
+
+if ZMK_KEYSTROKE_STATS
+
+config ZMK_KEYSTROKE_STATS_SAVE_INTERVAL_MS
+	int "Statistics save interval in milliseconds"
+	default 86400000
+	range 60000 604800000
+	help
+	  How often to save statistics to persistent storage (default: 24 hours).
+	  Lower values increase flash wear. Recommended minimum: 3600000 (1 hour).
+
+	  Flash endurance calculation:
+	  - 24 hours (86400000ms) = 27 year lifespan
+	  - 1 hour (3600000ms) = 1.1 year lifespan
+
+config ZMK_KEYSTROKE_STATS_SAVE_DEBOUNCE_MS
+	int "Save debounce delay in milliseconds"
+	default 60000
+	range 5000 300000
+	help
+	  Delay before actually writing to flash after save is triggered.
+	  This prevents excessive flash writes when multiple changes occur
+	  in quick succession. Default: 60 seconds.
+
+config ZMK_KEYSTROKE_STATS_DAY_ROLLOVER_HOUR
+	int "Hour of day to roll over to next day (0-23)"
+	default 0
+	range 0 23
+	help
+	  Which hour (in 24h format) to consider as the start of a new day
+	  for uptime-based day tracking. Default: 0 (midnight equivalent).
+
+	  Note: This is based on uptime, not real-time clock.
+
+config ZMK_KEYSTROKE_STATS_ENABLE_WPM
+	bool "Enable Words Per Minute (WPM) tracking"
+	default y
+	help
+	  Track typing speed in words per minute (WPM).
+	  Calculates current, average, and peak WPM.
+
+	  WPM calculation: (keystrokes / 5) / (time in minutes)
+
+config ZMK_KEYSTROKE_STATS_WPM_WINDOW_MS
+	int "WPM calculation window in milliseconds"
+	default 5000
+	range 1000 60000
+	depends on ZMK_KEYSTROKE_STATS_ENABLE_WPM
+	help
+	  Time window for current WPM calculation. Default: 5 seconds.
+	  Shorter windows are more responsive but less smooth.
+
+config ZMK_KEYSTROKE_STATS_ENABLE_KEY_HEATMAP
+	bool "Enable per-key usage tracking (heatmap)"
+	default y
+	help
+	  Track how many times each key position has been pressed.
+	  Useful for identifying most-used keys and generating heatmaps.
+
+	  Note: Increases RAM usage (~4 bytes per key position).
+
+config ZMK_KEYSTROKE_STATS_MAX_KEY_POSITIONS
+	int "Maximum number of key positions to track"
+	default 64
+	range 10 256
+	depends on ZMK_KEYSTROKE_STATS_ENABLE_KEY_HEATMAP
+	help
+	  Maximum number of key positions in the keyboard.
+	  Should match or exceed your actual key count.
+
+	  RAM usage: 4 bytes × this value
+
+config ZMK_KEYSTROKE_STATS_TOP_KEYS_COUNT
+	int "Number of top keys to track"
+	default 10
+	range 1 20
+	depends on ZMK_KEYSTROKE_STATS_ENABLE_KEY_HEATMAP
+	help
+	  How many most-frequently-pressed keys to track in the API.
+	  Default: 10 (top 10 keys).
+
+config ZMK_KEYSTROKE_STATS_ENABLE_DAILY_HISTORY
+	bool "Enable daily statistics history"
+	default y
+	help
+	  Keep a history of daily keystroke counts for the past N days.
+	  Useful for tracking trends over time.
+
+config ZMK_KEYSTROKE_STATS_DAILY_HISTORY_DAYS
+	int "Number of days to keep in history"
+	default 7
+	range 1 30
+	depends on ZMK_KEYSTROKE_STATS_ENABLE_DAILY_HISTORY
+	help
+	  How many days of history to keep. Default: 7 days (one week).
+
+	  Storage usage: ~12 bytes per day
+
+config ZMK_KEYSTROKE_STATS_ENABLE_SESSION_TRACKING
+	bool "Enable session-based tracking"
+	default y
+	help
+	  Track statistics for the current typing session separately
+	  from overall statistics. Session resets after inactivity timeout.
+
+config ZMK_KEYSTROKE_STATS_SESSION_TIMEOUT_MS
+	int "Session inactivity timeout in milliseconds"
+	default 300000
+	range 60000 3600000
+	depends on ZMK_KEYSTROKE_STATS_ENABLE_SESSION_TRACKING
+	help
+	  How long of inactivity before starting a new session.
+	  Default: 300000ms (5 minutes).
+
+config ZMK_KEYSTROKE_STATS_LOG_LEVEL
+	int "Keystroke stats log level"
+	default 3
+	range 0 4
+	help
+	  Log level for keystroke statistics module.
+	  0 = OFF, 1 = ERROR, 2 = WARNING, 3 = INFO, 4 = DEBUG
+
+# UI Implementation Selection
+choice ZMK_KEYSTROKE_STATS_UI
+	prompt "UI Implementation"
+	default ZMK_KEYSTROKE_STATS_UI_NONE
+	help
+	  Select which UI implementation to use for displaying statistics.
+
+config ZMK_KEYSTROKE_STATS_UI_NONE
+	bool "No UI (headless mode)"
+	help
+	  No graphical display. Statistics are still tracked and accessible
+	  via API for logging or external tools.
+
+config ZMK_KEYSTROKE_STATS_UI_PROSPECTOR
+	bool "Prospector LVGL Widget"
+	depends on LVGL
+	help
+	  Display statistics using LVGL widget for Prospector module
+	  (ST7789V display, 240x280px).
+
+config ZMK_KEYSTROKE_STATS_UI_OLED
+	bool "OLED SSD1306 Display"
+	depends on DISPLAY
+	help
+	  Display statistics on SSD1306 OLED display (128x64px monochrome).
+
+endchoice
+
+# Prospector-specific options
+if ZMK_KEYSTROKE_STATS_UI_PROSPECTOR
+
+config ZMK_KEYSTROKE_STATS_PROSPECTOR_WIDGET_HEIGHT
+	int "Widget height in pixels"
+	default 48
+	range 32 80
+	help
+	  Height of the keystroke stats widget. Default: 48px.
+
+config ZMK_KEYSTROKE_STATS_PROSPECTOR_FONT_SIZE
+	int "Number font size"
+	default 32
+	range 16 48
+	help
+	  Font size for displaying numbers. Default: 32px.
+
+config ZMK_KEYSTROKE_STATS_PROSPECTOR_ENABLE_COLOR
+	bool "Enable color highlighting"
+	default y
+	help
+	  Use different colors for different statistics
+	  (e.g., cyan for TODAY, white for others).
+
+config ZMK_KEYSTROKE_STATS_PROSPECTOR_UPDATE_INTERVAL_MS
+	int "UI update interval in milliseconds"
+	default 1000
+	range 100 10000
+	help
+	  How often to refresh the display. Default: 1000ms (1 second).
+
+endif # ZMK_KEYSTROKE_STATS_UI_PROSPECTOR
+
+# OLED-specific options
+if ZMK_KEYSTROKE_STATS_UI_OLED
+
+config ZMK_KEYSTROKE_STATS_OLED_UPDATE_INTERVAL_MS
+	int "UI update interval in milliseconds"
+	default 2000
+	range 500 10000
+	help
+	  How often to refresh the OLED display. Default: 2000ms (2 seconds).
+	  Longer intervals save power on OLED displays.
+
+endif # ZMK_KEYSTROKE_STATS_UI_OLED
+
+endif # ZMK_KEYSTROKE_STATS
