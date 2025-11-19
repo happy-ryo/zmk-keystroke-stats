@@ -152,9 +152,7 @@ int keystroke_stats_load_from_settings(void) {
 /**
  * @brief Initialize settings subsystem for keystroke stats
  */
-static int keystroke_stats_settings_init(const struct device *dev) {
-    ARG_UNUSED(dev);
-
+static int keystroke_stats_settings_init(void) {
     LOG_INF("Keystroke statistics settings module initialized");
 
     return 0;
