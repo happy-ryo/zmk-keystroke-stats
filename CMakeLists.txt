@@ -11,19 +11,18 @@ zephyr_library_sources(src/events/keystroke_stats_changed.c)
 zephyr_library_include_directories(include)
 
 # UI implementation selection
-if(CONFIG_ZMK_KEYSTROKE_STATS_UI_PROSPECTOR)
-  zephyr_library_sources(src/ui/prospector/keystroke_stats_prospector.c)
-  message(STATUS "ZMK Keystroke Stats: Using Prospector LVGL UI")
-endif()
-
-if(CONFIG_ZMK_KEYSTROKE_STATS_UI_OLED)
-  zephyr_library_sources(src/ui/oled/keystroke_stats_oled.c)
-  message(STATUS "ZMK Keystroke Stats: Using OLED SSD1306 UI")
-endif()
-
 if(CONFIG_ZMK_KEYSTROKE_STATS_UI_NONE)
   zephyr_library_sources(src/ui/headless/keystroke_stats_headless.c)
   message(STATUS "ZMK Keystroke Stats: Using headless mode (no UI)")
+elseif(CONFIG_ZMK_KEYSTROKE_STATS_UI_PROSPECTOR)
+  zephyr_library_sources(src/ui/prospector/keystroke_stats_prospector.c)
+  message(STATUS "ZMK Keystroke Stats: Using Prospector LVGL UI")
+elseif(CONFIG_ZMK_KEYSTROKE_STATS_UI_OLED)
+  zephyr_library_sources(src/ui/oled/keystroke_stats_oled.c)
+  message(STATUS "ZMK Keystroke Stats: Using OLED SSD1306 UI")
+else()
+  message(WARNING "ZMK Keystroke Stats: No UI implementation selected, defaulting to headless")
+  zephyr_library_sources(src/ui/headless/keystroke_stats_headless.c)
 endif()
 
 # Log configuration
